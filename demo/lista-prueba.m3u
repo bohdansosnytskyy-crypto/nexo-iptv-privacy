@@ -1,0 +1,7 @@
+#EXTM3U x-tvg-url="https://bohdansosnytskyy-crypto.github.io/nexo-iptv-privacy/demo/guia-prueba.xml"
+# Nexo IPTV reviewer demo. One sample HLS film, not a live television service.
+# Big Buck Bunny (2008) (c) copyright Blender Foundation / www.bigbuckbunny.org
+# Licensed CC BY 3.0: https://creativecommons.org/licenses/by/3.0/
+# Stream provided by Mux as a public player test sample; availability is third-party.
+#EXTINF:-1 tvg-id="nexo-demo-bbb" tvg-name="Big Buck Bunny - Demo" group-title="Demostración autorizada",Big Buck Bunny · Demo (Blender CC BY 3.0)
+https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8
