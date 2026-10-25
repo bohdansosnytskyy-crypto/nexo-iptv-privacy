@@ -1,0 +1,81 @@
+name: Verify public reviewer demo
+on:
+  push:
+    paths:
+      - ".github/workflows/check-review-demo.yml"
+      - "demo/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-review-demo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout public static demo
+        uses: actions/checkout@v4
+
+      - name: Verify M3U and XMLTV files
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from datetime import datetime, timezone
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          m3u = Path("demo/lista-prueba.m3u").read_text(encoding="utf-8")
+          assert m3u.startswith("#EXTM3U"), "Missing extended M3U header"
+          assert m3u.count("#EXTINF:") == 1, "Demo must contain exactly one entry"
+          assert "x-tvg-url=" in m3u, "Missing EPG URL"
+          assert "nexo-demo-bbb" in m3u, "Missing explicit tvg-id"
+          assert "test-streams.mux.dev" in m3u
+          guide = ET.parse("demo/guia-prueba.xml").getroot()
+          channels = guide.findall("channel")
+          programs = guide.findall("programme")
+          assert len(channels) == 1
+          assert len(programs) >= 1500, len(programs)
+          assert channels[0].get("id") == "nexo-demo-bbb"
+          for p in programs:
+              assert p.get("channel") == "nexo-demo-bbb"
+              datetime.strptime(p.attrib["start"], "%Y%m%d%H%M%S %z")
+              datetime.strptime(p.attrib["stop"], "%Y%m%d%H%M%S %z")
+          print(f"Local demo valid: 1 M3U entry and {len(programs)} XMLTV events.")
+          PY
+
+      - name: Verify public GitHub Pages assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="https://bohdansosnytskyy-crypto.github.io/nexo-iptv-privacy/demo"
+          mkdir -p /tmp/nexo-review
+          for ATTEMPT in 1 2 3 4 5 6; do
+            if curl --retry 1 --retry-delay 1 -fsSL --max-time 20 "$ROOT/lista-prueba.m3u" -o /tmp/nexo-review/demo.m3u &&
+               curl --retry 1 --retry-delay 1 -fsSL --max-time 25 "$ROOT/guia-prueba.xml" -o /tmp/nexo-review/guide.xml; then
+                break
+            fi
+            if [ "$ATTEMPT" = 6 ]; then echo "Public Pages assets not available"; exit 1; fi
+            sleep 10
+          done
+          grep -q '^#EXTM3U' /tmp/nexo-review/demo.m3u
+          grep -q 'nexo-demo-bbb' /tmp/nexo-review/guide.xml
+          echo "Public Pages M3U and XMLTV endpoints are reachable without credentials."
+
+      - name: Verify third-party test HLS stream
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --retry 2 --retry-delay 3 -fsSL --max-time 35             "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"             -o /tmp/nexo-review/source.m3u8
+          grep -q '^#EXTM3U' /tmp/nexo-review/source.m3u8
+          echo "Mux test HLS master playlist is reachable. Media playback must still be tested on Android."
+
+      - name: Public demo summary
+        run: |
+          {
+            echo "### Nexo IPTV public reviewer sample"
+            echo ""
+            echo "- Public M3U: https://bohdansosnytskyy-crypto.github.io/nexo-iptv-privacy/demo/lista-prueba.m3u"
+            echo "- Public XMLTV: https://bohdansosnytskyy-crypto.github.io/nexo-iptv-privacy/demo/guia-prueba.xml"
+            echo "- The media is an externally hosted, license-attributed VOD test sample; not a live TV broadcast."
+            echo "- No credentials or personal playlists are involved."
+          } >> "$GITHUB_STEP_SUMMARY"
